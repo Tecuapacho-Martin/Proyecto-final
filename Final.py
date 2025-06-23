@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 class Trabajador:
     def __init__(self, nombre, ID, puesto, genero, nacimiento, domicilio, telefono, correo):
+        self.asistencias = [] 
         self.nombre = nombre
         self.puesto = puesto
         self.ID = ID
@@ -15,6 +16,9 @@ class Trabajador:
         self.correo = correo
         self.vacaciones = None
         self.turno = None
+
+    def registrar_asistencia(self, fecha_hora):
+        self.asistencias.append(fecha_hora)
 
     def asignar_vacaciones(self, fecha_inicio):
         inicio = datetime.strptime(fecha_inicio, "%Y-%m-%d")
@@ -71,10 +75,15 @@ def registrar_trabajador():
         messagebox.showerror("Error", "Por favor, ingresa datos válidos.")
 
 def actualizar_lista_trabajadores():
-    texto_trabajadores.config(state=tk.NORMAL)
-    texto_trabajadores.delete("1.0", tk.END)
-    texto_trabajadores.insert(tk.END, registro_trabajadores.mostrar_trabajadores())
-    texto_trabajadores.config(state=tk.DISABLED)
+    global texto_trabajadores
+    try:
+        texto_trabajadores.config(state=tk.NORMAL)
+        texto_trabajadores.delete("1.0", tk.END)
+        texto_trabajadores.insert(tk.END, registro_trabajadores.mostrar_trabajadores())
+        texto_trabajadores.config(state=tk.DISABLED)
+    except:
+        pass  # El widget no existe en esta pantalla, así que ignoramos
+
 
 def interfaz_trabajadores():
     limpiar_area_dinamica()
@@ -241,6 +250,100 @@ def asignar_turno():
             messagebox.showinfo("Éxito", f"Turno asignado a {nombre}.")
             actualizar_lista_trabajadores()
             break
+def interfaz_asistencia():
+    limpiar_area_dinamica()
+    tk.Label(area_dinamica, text="Registro de Asistencia", font=("Arial", 14)).pack(pady=10)
+
+    nombres = [t.nombre for t in registro_trabajadores.trabajadores]
+    if not nombres:
+        tk.Label(area_dinamica, text="No hay trabajadores registrados.").pack()
+        return
+
+    global entrada_nombre_asistencia
+    tk.Label(area_dinamica, text="Nombre del trabajador:").pack()
+    entrada_nombre_asistencia = tk.StringVar()
+    entrada_nombre_asistencia.set(nombres[0])
+    tk.OptionMenu(area_dinamica, entrada_nombre_asistencia, *nombres).pack()
+
+    tk.Button(area_dinamica, text="Registrar Asistencia", command=registrar_asistencia_por_nombre).pack(pady=10)
+
+def obtener_trabajador_por_nombre(nombre):
+    for t in registro_trabajadores.trabajadores:
+        if t.nombre == nombre:
+            return t
+    return None
+
+def registrar_asistencia_por_nombre():
+    nombre = entrada_nombre_asistencia.get()
+    trabajador = obtener_trabajador_por_nombre(nombre)
+
+    if not trabajador:
+        messagebox.showerror("Error", "Trabajador no encontrado.")
+        return
+
+    if not trabajador.turno:
+        messagebox.showerror("Turno no asignado", "El trabajador no tiene turno y horario asignados.")
+        return
+
+    ahora = datetime.now().strftime("%H:%M")
+    turno = trabajador.turno
+    dias = turno["dias"]
+
+    hoy = datetime.now().strftime("%A")  # Día en inglés (e.g. "Monday")
+    mapa_dias = {
+        "Monday": "Lunes",
+        "Tuesday": "Martes",
+        "Wednesday": "Miércoles",
+        "Thursday": "Jueves",
+        "Friday": "Viernes",
+        "Saturday": "Sábado",
+        "Sunday": "Domingo"
+    }
+
+    dia_actual = mapa_dias.get(hoy, "")
+    if dia_actual not in dias:
+        messagebox.showerror("Fuera de turno", f"Hoy ({dia_actual}) no está dentro de los días laborales asignados.")
+        return
+
+    messagebox.showinfo("Asistencia registrada", f"Asistencia registrada para {nombre} a las {ahora}.")
+    trabajador.registrar_asistencia(datetime.now().strftime("%Y-%m-%d %H:%M"))
+def interfaz_historial():
+    limpiar_area_dinamica()
+    tk.Label(area_dinamica, text="Historial de Asistencias", font=("Arial", 14)).pack(pady=10)
+
+    nombres = [t.nombre for t in registro_trabajadores.trabajadores]
+    if not nombres:
+        tk.Label(area_dinamica, text="No hay trabajadores registrados.").pack()
+        return
+
+    global seleccion_historial
+    tk.Label(area_dinamica, text="Selecciona un trabajador:").pack()
+    seleccion_historial = tk.StringVar()
+    seleccion_historial.set(nombres[0])
+    tk.OptionMenu(area_dinamica, seleccion_historial, *nombres).pack()
+
+    tk.Button(area_dinamica, text="Mostrar historial", command=mostrar_historial_asistencia).pack(pady=10)
+
+    global texto_historial
+    texto_historial = tk.Text(area_dinamica, height=10, width=50)
+    texto_historial.pack()
+    texto_historial.config(state=tk.DISABLED)
+
+def mostrar_historial_asistencia():
+    nombre = seleccion_historial.get()
+    trabajador = obtener_trabajador_por_nombre(nombre)
+
+    texto_historial.config(state=tk.NORMAL)
+    texto_historial.delete("1.0", tk.END)
+
+    if trabajador.asistencias:
+        for entrada in trabajador.asistencias:
+            texto_historial.insert(tk.END, f"{entrada}\n")
+    else:
+        texto_historial.insert(tk.END, "Sin registros de asistencia.")
+
+    texto_historial.config(state=tk.DISABLED)
+
 
 def limpiar_area_dinamica():
     for widget in area_dinamica.winfo_children():
@@ -261,7 +364,11 @@ area_dinamica.pack(side="right", expand=True, fill="both")
 tk.Button(menu_lateral, text="Trabajadores", command=interfaz_trabajadores, width=15).pack(pady=10)
 tk.Button(menu_lateral, text="Vacaciones", command=interfaz_vacaciones, width=15).pack(pady=10)
 tk.Button(menu_lateral, text="Turnos", command=interfaz_turnos, width=15).pack(pady=10)
+tk.Button(menu_lateral, text="Historial", command=interfaz_historial, width=15).pack(pady=10)
+tk.Button(menu_lateral, text="Asistencia", command=interfaz_asistencia, width=15).pack(pady=10)
 tk.Button(menu_lateral, text="Salir", command=ventana_principal.destroy, width=15).pack(pady=30)
+
+
 
 interfaz_trabajadores()
 ventana_principal.mainloop()
